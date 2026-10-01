@@ -105,6 +105,7 @@ h2{font-size:1.05rem;margin:22px 2px 8px;font-weight:700}
 .sync{font-size:.76rem;color:var(--muted);margin:-6px 2px 10px;min-height:1.1em}
 .sync[data-st="sync"]{color:var(--lv)}
 .sync[data-st="err"]{color:var(--red)}
+.sync[data-st="nostore"]{color:var(--red);font-weight:700}
 .rule{font-size:.78rem;color:var(--muted);margin:14px 4px 0}
 
 .scrim{position:fixed;inset:0;background:rgba(10,15,25,.45);display:none;z-index:10}
@@ -350,7 +351,8 @@ textarea{min-height:84px;resize:vertical}
     el.textContent={sync:'계정에 동기화됨 · 다른 기기에서도 같은 기록이 보입니다',
       local:'이 기기에만 저장 중 · claude.ai에 로그인한 상태로 열면 동기화됩니다',
       wait:'동기화 연결 중…',
-      device:'이 휴대폰 브라우저에 저장됩니다',
+      device:'이 휴대폰 브라우저에 저장됩니다 · 저장된 기록 '+Object.keys(store.days).length+'건 · v3',
+      nostore:'⚠ 이 브라우저에서는 기록이 저장되지 않습니다. Safari 또는 홈 화면 아이콘으로 열어 주세요 · v3',
       err:'동기화 오류 · 이 기기에는 저장되었습니다. 잠시 후 다시 열어 주세요'}[st]||'';
   }
   function yearDoc(y){
@@ -381,7 +383,11 @@ textarea{min-height:84px;resize:vertical}
     return r;
   }
   async function initSync(){
-    if(!window.claude||typeof window.claude.use!=='function'){setStatus('device');return;}
+    if(!window.claude||typeof window.claude.use!=='function'){
+      var ok=false; try{localStorage.setItem(KEY+':test','1'); ok=localStorage.getItem(KEY+':test')==='1'; localStorage.removeItem(KEY+':test');}catch(e){}
+      setStatus(ok?'device':'nostore');
+      try{ if(navigator.storage&&navigator.storage.persist) navigator.storage.persist(); }catch(e){}
+      return;}
     setStatus('wait');
     try{
       var d=await window.claude.use('db'), u=await window.claude.use('user');
@@ -579,9 +585,9 @@ textarea{min-height:84px;resize:vertical}
       var c=calc(tin,tout,curLv,red), memo=$('memo').value.trim();
       if(c.ot>0&&memo) rec.memo=memo;
     }
-    store.days[cur]=rec; var py=+cur.slice(0,4); persist(py); close(); render();
+    store.days[cur]=rec; var py=+cur.slice(0,4); persist(py); close(); render(); if(!db) setStatus($('sync').dataset.st||'device');
   };
-  $('delBtn').onclick=function(){ delete store.days[cur]; persist(+cur.slice(0,4)); close(); render(); };
+  $('delBtn').onclick=function(){ delete store.days[cur]; persist(+cur.slice(0,4)); close(); render(); if(!db) setStatus($('sync').dataset.st||'device'); };
   $('cancelBtn').onclick=close; $('scrim').onclick=close;
   document.addEventListener('keydown',function(e){if(e.key==='Escape'&&cur)close();});
 
