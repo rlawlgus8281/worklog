@@ -320,8 +320,24 @@ textarea{min-height:84px;resize:vertical}
     if(raw){
       var p=JSON.parse(raw)||{};
       if(p.days) store=Object.assign(store,p);
-      if(!store.preUsed) store.preUsed={};
       else store.days=p; // 이전 버전 데이터 이전
+      if(!store.preUsed) store.preUsed={};
+      if(!store.custom) store.custom={};
+      if(!store.leaveTotal) store.leaveTotal={};
+      // 이전 버전 오류로 겹겹이 저장된 기록 복구
+      (function rescue(){
+        var DK=/^\d{4}-\d\d-\d\d$/, out={}, extra={custom:{},leaveTotal:{},preUsed:{}}, fixed=false;
+        (function walk(o,depth){
+          if(!o||typeof o!=='object'||depth>50) return;
+          Object.keys(o).forEach(function(k){ if(DK.test(k)&&out[k]===undefined&&o[k]&&typeof o[k]==='object') out[k]=o[k]; });
+          ['custom','leaveTotal','preUsed'].forEach(function(n){ if(o[n]&&typeof o[n]==='object'){ fixed=true; Object.keys(o[n]).forEach(function(k){ if(extra[n][k]===undefined) extra[n][k]=o[n][k]; }); } });
+          if(o.days&&typeof o.days==='object'){ fixed=true; walk(o.days,depth+1); }
+        })(store.days,0);
+        if(!fixed) return;
+        store.days=out;
+        ['custom','leaveTotal','preUsed'].forEach(function(n){ Object.keys(extra[n]).forEach(function(k){ if(store[n][k]===undefined) store[n][k]=extra[n][k]; }); });
+        try{localStorage.setItem(KEY,JSON.stringify(store));}catch(e){}
+      })();
     }
   }catch(e){}
   function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(store));}catch(e){}}
