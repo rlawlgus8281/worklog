@@ -106,6 +106,17 @@ h2{font-size:1.05rem;margin:22px 2px 8px;font-weight:700}
 .sync[data-st="sync"]{color:var(--lv)}
 .sync[data-st="err"]{color:var(--red)}
 .sync[data-st="nostore"]{color:var(--red);font-weight:700}
+.gsbox{background:var(--paper);border:1px solid var(--line);border-radius:14px;margin-top:22px;padding:0 14px}
+.gsbox summary{cursor:pointer;padding:13px 0;font-weight:700;font-size:.95rem}
+.gsbox[open] summary{border-bottom:1px solid var(--line);margin-bottom:10px}
+.gsf{display:block;font-size:.8rem;color:var(--muted);margin:0 0 10px}
+.gsf input{display:block;width:100%;margin-top:4px;font:inherit;font-size:.9rem;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:9px 10px}
+.gsacts{display:flex;gap:6px;flex-wrap:wrap}
+.gsacts button{border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:8px 14px;font-size:.88rem}
+.gsacts button[hidden]{display:none}
+#bkBox{margin-top:10px}
+.gsacts .pri{background:var(--accent);border-color:var(--accent);color:var(--paper);font-weight:700}
+.gsstate{font-size:.8rem;color:var(--muted);margin:10px 0 14px;min-height:1.2em}
 .rule{font-size:.78rem;color:var(--muted);margin:14px 4px 0}
 
 .scrim{position:fixed;inset:0;background:rgba(10,15,25,.45);display:none;z-index:10}
@@ -196,6 +207,27 @@ textarea{min-height:84px;resize:vertical}
   <h2 id="lvListTitle">올해 연차 사용</h2>
   <div class="list" id="lvList"></div>
 
+  <details class="gsbox" id="gsBox">
+    <summary>구글 시트 연결 (PC 위젯·엑셀과 동기화)</summary>
+    <label class="gsf">웹 앱 주소<input id="gsUrl" type="url" inputmode="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+    <label class="gsf">연결 키<input id="gsKey" type="text" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+    <div class="gsacts"><button id="gsSave" class="pri">연결</button><button id="gsNow">지금 동기화</button><button id="gsOff">연결 해제</button></div>
+    <p class="gsstate" id="gsState"></p>
+  </details>
+
+  <details class="gsbox" id="bkBox">
+    <summary>기록 백업</summary>
+    <p class="gsstate" id="bkState" style="margin-top:0"></p>
+    <div class="gsacts">
+      <button id="bkNow">지금 백업</button>
+      <button id="bkFile">백업 파일 저장</button>
+      <button id="bkRestore">백업에서 복원</button>
+      <button id="bkLoad">파일에서 복원</button>
+    </div>
+    <input type="file" id="bkInput" accept=".json,application/json" hidden>
+    <p class="gsstate" id="bkMsg"></p>
+  </details>
+
   <p class="rule">기본 09:00–18:00, 점심 12:00–13:00(1시간) 제외. 평일은 하루 8시간(반차는 4시간)을 넘는 시간이, 토·일·공휴일은 근무한 시간 전부가 추가근무로 계산됩니다. 공휴일·대체공휴일은 2026–2027년은 정부 월력요항 기준, 2028–2050년은 「관공서의 공휴일에 관한 규정」에 따라 자동 계산한 값입니다. 2029년 이후 선거일은 들어 있지 않으며, 회사 휴무일이나 선거일·임시공휴일은 날짜를 눌러 직접 휴일로 지정할 수 있습니다.</p>
 </div>
 
@@ -229,10 +261,10 @@ textarea{min-height:84px;resize:vertical}
       <div><span>기준 근무</span><span id="cStd">8:00</span></div>
       <div class="otrow" id="cOtRow" hidden><span>추가근무</span><span id="cOt">0:00</span></div>
     </div>
-    <div class="memo" id="memoBox">
-      <label for="memo">추가근무 메모</label>
-      <textarea id="memo" placeholder="메모"></textarea>
-    </div>
+  </div>
+  <div class="memo on" id="memoBox">
+    <label for="memo">메모 (PC 엑셀의 업무내용과 연동)</label>
+    <textarea id="memo" placeholder="메모"></textarea>
   </div>
 
   <label class="holtoggle" id="holWrap"><input type="checkbox" id="holChk"> 이 날을 휴일로 지정 (회사 휴무·임시공휴일)</label>
@@ -347,12 +379,13 @@ textarea{min-height:84px;resize:vertical}
   var db=null, uid=null, writeQ={};
   function setStatus(st){
     var el=$('sync'); if(!el) return;
+    if(st==='device'&&gsOn()&&el.dataset.gs) return;
     el.dataset.st=st;
     el.textContent={sync:'계정에 동기화됨 · 다른 기기에서도 같은 기록이 보입니다',
       local:'이 기기에만 저장 중 · claude.ai에 로그인한 상태로 열면 동기화됩니다',
       wait:'동기화 연결 중…',
-      device:'이 휴대폰 브라우저에 저장됩니다 · 저장된 기록 '+Object.keys(store.days).length+'건 · v3',
-      nostore:'⚠ 이 브라우저에서는 기록이 저장되지 않습니다. Safari 또는 홈 화면 아이콘으로 열어 주세요 · v3',
+      device:'이 휴대폰 브라우저에 저장됩니다 · 저장된 기록 '+Object.keys(store.days).length+'건 · v4',
+      nostore:'⚠ 이 브라우저에서는 기록이 저장되지 않습니다. Safari 또는 홈 화면 아이콘으로 열어 주세요 · v4',
       err:'동기화 오류 · 이 기기에는 저장되었습니다. 잠시 후 다시 열어 주세요'}[st]||'';
   }
   function yearDoc(y){
@@ -421,6 +454,137 @@ textarea{min-height:84px;resize:vertical}
 
   var now=new Date(), view=new Date(now.getFullYear(),now.getMonth(),1), cur=null, curLv='', curRed=false;
   var $=function(id){return document.getElementById(id)};
+  // ── 구글 시트 동기화 (PC 출퇴근 위젯·엑셀과 공유) ──
+  var GSK='worklog:gs', GSQ='worklog:gsq';
+  function lsGet(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}}
+  function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+  var gs=lsGet(GSK,null), gsq=lsGet(GSQ,null)||{d:{},s:{}}, gsBusy=false, gsAgain=false, gsTimer=null, gsLast=0;
+  if(!gsq.d) gsq.d={}; if(!gsq.s) gsq.s={};
+  function gsOn(){return !!(gs&&gs.url&&gs.key)}
+  function gsDirty(date){ if(!gsOn()) return; var r=store.days[date]; gsq.d[date]=(r&&r.u)||Date.now(); lsSet(GSQ,gsq); gsSoon(); }
+  function gsDirtySet(k){ if(!gsOn()) return; gsq.s[k]=1; lsSet(GSQ,gsq); gsSoon(); }
+  function gsSoon(){ clearTimeout(gsTimer); gsTimer=setTimeout(gsSync,400); }
+  function gsShow(kind,msg){ var el=$('sync'); el.dataset.st=kind; el.dataset.gs='1'; el.textContent=msg+' · v4'; var g=$('gsState'); if(g) g.textContent=msg; }
+  function hm(t){ return pad(t.getHours())+':'+pad(t.getMinutes()); }
+  function recOut(date){
+    var r=store.days[date]||{};
+    return {date:date,in:r.in||'',out:r.out||'',leave:r.leave||'',memo:r.memo||'',hol:store.custom[date]?1:0,u:gsq.d[date]||0,src:'휴대폰'};
+  }
+  function gsSync(){
+    if(!gsOn()) return;
+    if(gsBusy){gsAgain=true;return;}
+    gsBusy=true;
+    var sentD={}, recs=[], sets={}, sentS={};
+    Object.keys(gsq.d).forEach(function(d){ sentD[d]=gsq.d[d]; recs.push(recOut(d)); });
+    Object.keys(gsq.s).forEach(function(k){ sentS[k]=1; var p=k.split('.'), v=(store[p[0]]||{})[p[1]]; sets[k]=(v==null?null:v); });
+    var push=recs.length||Object.keys(sets).length;
+    gsShow('wait','구글 시트와 동기화 중…');
+    var req=push
+      ? fetch(gs.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({k:gs.key,records:recs,settings:sets})})
+      : fetch(gs.url+(gs.url.indexOf('?')<0?'?':'&')+'k='+encodeURIComponent(gs.key)+'&t='+Date.now());
+    req.then(function(r){return r.json()}).then(function(data){
+      if(!data||!data.ok){ var er=new Error('server'); er.key=!!(data&&data.error==='key'); throw er; }
+      Object.keys(sentD).forEach(function(d){ if(gsq.d[d]===sentD[d]) delete gsq.d[d]; });
+      Object.keys(sentS).forEach(function(k){ delete gsq.s[k]; });
+      var server=data.records||{}, localOnly=[];
+      Object.keys(server).forEach(function(d){
+        if(d in gsq.d) return; // 이 휴대폰에서 방금 바꾼 날짜는 다음 전송까지 유지
+        var s=server[d], r={};
+        if(s.in) r.in=s.in; if(s.out) r.out=s.out; if(s.leave&&LV[s.leave]) r.leave=s.leave; if(s.memo) r.memo=s.memo;
+        if(r.in||r.out||r.leave||r.memo){ r.u=s.u||0; store.days[d]=r; } else delete store.days[d];
+        if(s.hol) store.custom[d]=1; else delete store.custom[d];
+      });
+      Object.keys(store.days).forEach(function(d){ if(!(d in server)&&!(d in gsq.d)) localOnly.push(d); });
+      Object.keys(store.custom).forEach(function(d){ if(!(d in server)&&!(d in gsq.d)&&localOnly.indexOf(d)<0) localOnly.push(d); });
+      var st=data.settings||{};
+      Object.keys(st).forEach(function(k){
+        if(k in gsq.s) return;
+        var p=k.split('.');
+        if((p[0]==='leaveTotal'||p[0]==='preUsed')&&p[1]){ if(st[k]==null||st[k]==='') delete store[p[0]][p[1]]; else store[p[0]][p[1]]=Number(st[k]); }
+      });
+      ['leaveTotal','preUsed'].forEach(function(n){ Object.keys(store[n]).forEach(function(y){ var k=n+'.'+y; if(!(k in st)) gsq.s[k]=1; }); });
+      localOnly.forEach(function(d){ gsq.d[d]=(store.days[d]&&store.days[d].u)||0; }); // 아직 시트에 없는 기록 → 올리기
+      lsSet(GSQ,gsq); saveLocal(); render();
+      gsLast=Date.now();
+      if(Object.keys(gsq.d).length||Object.keys(gsq.s).length) gsAgain=true;
+      gsShow('sync','구글 시트 동기화됨 '+hm(new Date())+' · 저장된 기록 '+Object.keys(store.days).length+'건');
+    }).catch(function(e){
+      var n=Object.keys(gsq.d).length+Object.keys(gsq.s).length;
+      if(e&&e.key) gsShow('err','⚠ 연결 키가 맞지 않습니다 · 아래 "구글 시트 연결"에서 확인하세요');
+      else gsShow('err','구글 시트에 연결하지 못했습니다'+(n?' · 보낼 기록 '+n+'건 대기':'')+' · 이 휴대폰에는 저장됨');
+    }).then(function(){ gsBusy=false; if(gsAgain){gsAgain=false; gsSoon();} });
+  }
+  function gsInitUI(){
+    $('gsUrl').value=gs&&gs.url||''; $('gsKey').value=gs&&gs.key||'';
+    $('gsOff').hidden=!gsOn(); $('gsNow').hidden=!gsOn();
+    if(!gsOn()) $('gsState').textContent='연결하면 PC 위젯·엑셀과 기록을 주고받습니다.';
+  }
+  $('gsSave').onclick=function(){
+    var url=$('gsUrl').value.trim(), key=$('gsKey').value.trim();
+    if(!/^https:\/\/script\.google(usercontent)?\.com\//.test(url)){ $('gsState').textContent='웹 앱 주소는 https://script.google.com/… 으로 시작해야 합니다.'; return; }
+    if(!key){ $('gsState').textContent='연결 키를 입력하세요.'; return; }
+    if(bkCount(store)) bkSave(); // 연결 직전 상태 보관
+    gs={url:url.split('#')[0],key:key}; lsSet(GSK,gs); gsInitUI(); gsSync();
+  };
+  $('gsNow').onclick=function(){ gsSync(); };
+  // ── 기록 백업 (이 휴대폰 안 + 파일) ──
+  var BKK='worklog:backup';
+  function bkCount(d){ return Object.keys((d&&d.days)||{}).length; }
+  function bkStamp(t){ var d=new Date(t); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes()); }
+  function bkMake(){ return {app:'worklog',ver:4,at:Date.now(),data:JSON.parse(JSON.stringify(store))}; }
+  function bkSave(){ var b=bkMake(); lsSet(BKK,b); bkShow(); return b; }
+  function bkShow(){
+    var b=lsGet(BKK,null);
+    $('bkState').textContent=b?('마지막 백업 '+bkStamp(b.at)+' · 기록 '+bkCount(b.data)+'건 (이 휴대폰에 보관)'):'아직 백업이 없습니다.';
+    $('bkRestore').hidden=!b;
+  }
+  function bkApply(data){
+    if(!data||typeof data!=='object'||!data.days){ $('bkMsg').textContent='백업 내용을 읽을 수 없습니다.'; return; }
+    var before=Object.keys(store.days).concat(Object.keys(store.custom||{})), now=Date.now();
+    store={days:data.days||{},custom:data.custom||{},leaveTotal:data.leaveTotal||{},preUsed:data.preUsed||{}};
+    Object.keys(store.days).forEach(function(k){ if(store.days[k]) store.days[k].u=now; });
+    saveLocal();
+    if(gsOn()){ // 복원한 내용이 구글 시트·엑셀에도 반영되도록 모두 보냄 (백업에 없는 날짜는 삭제)
+      before.concat(Object.keys(store.days),Object.keys(store.custom)).forEach(function(k){ gsq.d[k]=now; });
+      ['leaveTotal','preUsed'].forEach(function(n){ Object.keys(store[n]).forEach(function(y){ gsq.s[n+'.'+y]=1; }); });
+      lsSet(GSQ,gsq); gsSoon();
+    }
+    render(); setStatus('device');
+    $('bkMsg').textContent='복원했습니다 · 기록 '+bkCount(store)+'건';
+  }
+  var bkArm=0;
+  $('bkNow').onclick=function(){ bkSave(); $('bkMsg').textContent='백업했습니다.'; };
+  $('bkRestore').onclick=function(){
+    var b=lsGet(BKK,null); if(!b) return;
+    if(Date.now()-bkArm>4000){ bkArm=Date.now(); $('bkMsg').textContent='지금 기록이 '+bkStamp(b.at)+' 백업으로 바뀝니다. 한 번 더 누르면 복원합니다.'; return; }
+    bkArm=0; bkApply(b.data);
+  };
+  $('bkFile').onclick=function(){
+    var b=bkMake(), name='근무기록_백업_'+bkStamp(b.at).replace(/[-: ]/g,'').slice(0,12)+'.json';
+    var text=JSON.stringify(b,null,1), blob=new Blob([text],{type:'application/json'});
+    try{
+      var f=new File([blob],name,{type:'application/json'});
+      if(navigator.canShare&&navigator.canShare({files:[f]})){ navigator.share({files:[f],title:name}).catch(function(){}); $('bkMsg').textContent='공유 화면에서 "파일에 저장"을 고르세요.'; return; }
+    }catch(e){}
+    var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); a.remove();
+    $('bkMsg').textContent=name+' 파일을 저장했습니다.';
+  };
+  $('bkLoad').onclick=function(){ $('bkInput').value=''; $('bkInput').click(); };
+  $('bkInput').onchange=function(){
+    var f=this.files&&this.files[0]; if(!f) return;
+    var rd=new FileReader();
+    rd.onload=function(){ try{ var b=JSON.parse(rd.result); bkApply(b.data||b); }catch(e){ $('bkMsg').textContent='백업 파일을 읽을 수 없습니다.'; } };
+    rd.readAsText(f);
+  };
+  // 새 버전을 처음 열 때, 기존 기록을 자동으로 한 번 백업
+  if(!lsGet(BKK,null)&&bkCount(store)) bkSave();
+
+  $('gsOff').onclick=function(){
+    gs=null; try{localStorage.removeItem(GSK)}catch(e){}
+    var el=$('sync'); delete el.dataset.gs; gsInitUI(); setStatus('device');
+  };
+  document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible'&&gsOn()&&Date.now()-gsLast>15000) gsSync(); });
+
   var DOW=['일','월','화','수','목','금','토'];
   function pad(n){return String(n).padStart(2,'0')}
   function keyOf(y,m,d){return y+'-'+pad(m+1)+'-'+pad(d)}
@@ -475,16 +639,19 @@ textarea{min-height:84px;resize:vertical}
           b.className+=' lvfull';
           html+='<span class="lvt full">연차</span>';
           label+=', 연차';
-        }else if(rec.in){
+        }else if(rec.in&&rec.out){
           var c=calc(rec.in,rec.out,rec.leave,red);
           tDays++; tWork+=c.work; tOt+=c.ot;
           b.className+=' has'+(c.ot>0?' over':'');
           if(rec.leave) html+='<span class="lvt" style="margin-top:auto">'+LV[rec.leave].n+'</span>';
           html+='<span class="h"'+(rec.leave?'':' ')+'>'+fmt(c.work)+'</span>';
           if(c.ot>0){html+='<span class="o">+'+fmt(c.ot)+'</span>'; ots.push({k:k,d:d,wd:wd,red:red,ot:c.ot,memo:rec.memo||''});}
-          if(rec.memo) html+='<span class="memo-dot" aria-hidden="true"></span>';
           label+=', 근무 '+fmt(c.work)+(rec.leave?', '+LV[rec.leave].n:'');
+        }else{
+          if(rec.leave){ html+='<span class="lvt" style="margin-top:auto">'+LV[rec.leave].n+'</span>'; label+=', '+LV[rec.leave].n; }
+          if(rec.in){ html+='<span class="h"'+(rec.leave?'':' style="margin-top:auto"')+'>'+rec.in+'~</span>'; label+=', 출근 '+rec.in; }
         }
+        if(rec.memo){ html+='<span class="memo-dot" aria-hidden="true"></span>'; label+=', 메모 있음'; }
       }
       b.innerHTML=html; b.setAttribute('aria-label',label);
       b.onclick=(function(k,d,wd){return function(){openSheet(k,m,d,wd)}})(k,d,wd);
@@ -540,7 +707,6 @@ textarea{min-height:84px;resize:vertical}
     $('cWork').textContent=fmt(c.work);
     $('cStd').textContent=red?'0:00 (휴일)':fmt(c.std);
     $('cOtRow').hidden=c.ot<=0; $('cOt').textContent='+'+fmt(c.ot);
-    $('memoBox').classList.toggle('on',c.ot>0&&curLv!=='full');
     $('err').textContent='';
   }
 
@@ -575,19 +741,18 @@ textarea{min-height:84px;resize:vertical}
     var red=curRed||hol;
     if(curLv&&red){$('err').textContent='휴일에는 연차를 쓸 수 없습니다. 휴가 종류를 "근무"로 바꾸세요.';return;}
     if(hol) store.custom[cur]=1; else delete store.custom[cur];
-    var rec={};
+    var rec={u:Date.now()};
     if(curLv==='full'){rec.leave='full';}
     else{
       var tin=$('tIn').value, tout=$('tOut').value;
       if(!tin||!tout){$('err').textContent='출근과 퇴근 시간을 모두 입력하세요.';return;}
       if(tin===tout){$('err').textContent='출근과 퇴근 시간이 같습니다.';return;}
       rec.in=tin; rec.out=tout; if(curLv) rec.leave=curLv;
-      var c=calc(tin,tout,curLv,red), memo=$('memo').value.trim();
-      if(c.ot>0&&memo) rec.memo=memo;
     }
-    store.days[cur]=rec; var py=+cur.slice(0,4); persist(py); close(); render(); if(!db) setStatus($('sync').dataset.st||'device');
+    var memo=$('memo').value.trim(); if(memo) rec.memo=memo;
+    store.days[cur]=rec; var py=+cur.slice(0,4); persist(py); gsDirty(cur); close(); render(); if(!db) setStatus($('sync').dataset.st||'device');
   };
-  $('delBtn').onclick=function(){ delete store.days[cur]; persist(+cur.slice(0,4)); close(); render(); if(!db) setStatus($('sync').dataset.st||'device'); };
+  $('delBtn').onclick=function(){ delete store.days[cur]; persist(+cur.slice(0,4)); gsDirty(cur); close(); render(); if(!db) setStatus($('sync').dataset.st||'device'); };
   $('cancelBtn').onclick=close; $('scrim').onclick=close;
   document.addEventListener('keydown',function(e){if(e.key==='Escape'&&cur)close();});
 
@@ -599,14 +764,17 @@ textarea{min-height:84px;resize:vertical}
     var rec=leaveStats(y).used, pre=v-rec-r;
     if(pre<0){$('lvErr').textContent='잔여+앱에 기록한 사용('+num(rec)+'일)이 총 연차보다 많습니다.';return;}
     $('lvErr').textContent='';
-    store.leaveTotal[y]=v; store.preUsed[y]=pre; persist(y); $('lvBox').classList.remove('on'); render();
+    store.leaveTotal[y]=v; store.preUsed[y]=pre; persist(y); gsDirtySet('leaveTotal.'+y); gsDirtySet('preUsed.'+y); $('lvBox').classList.remove('on'); render();
   };
 
   $('prev').onclick=function(){view=new Date(view.getFullYear(),view.getMonth()-1,1);render();};
   $('next').onclick=function(){view=new Date(view.getFullYear(),view.getMonth()+1,1);render();};
   $('todayBtn').onclick=function(){view=new Date(now.getFullYear(),now.getMonth(),1);render();};
+  gsInitUI();
+  bkShow();
   render();
   initSync();
+  if(gsOn()) gsSync();
 })();
 </script>
 </body>
