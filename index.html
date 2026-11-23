@@ -384,8 +384,8 @@ textarea{min-height:84px;resize:vertical}
     el.textContent={sync:'계정에 동기화됨 · 다른 기기에서도 같은 기록이 보입니다',
       local:'이 기기에만 저장 중 · claude.ai에 로그인한 상태로 열면 동기화됩니다',
       wait:'동기화 연결 중…',
-      device:'이 휴대폰 브라우저에 저장됩니다 · 저장된 기록 '+Object.keys(store.days).length+'건 · v4',
-      nostore:'⚠ 이 브라우저에서는 기록이 저장되지 않습니다. Safari 또는 홈 화면 아이콘으로 열어 주세요 · v4',
+      device:'이 휴대폰 브라우저에 저장됩니다 · 저장된 기록 '+Object.keys(store.days).length+'건 · v5',
+      nostore:'⚠ 이 브라우저에서는 기록이 저장되지 않습니다. Safari 또는 홈 화면 아이콘으로 열어 주세요 · v5',
       err:'동기화 오류 · 이 기기에는 저장되었습니다. 잠시 후 다시 열어 주세요'}[st]||'';
   }
   function yearDoc(y){
@@ -464,7 +464,7 @@ textarea{min-height:84px;resize:vertical}
   function gsDirty(date){ if(!gsOn()) return; var r=store.days[date]; gsq.d[date]=(r&&r.u)||Date.now(); lsSet(GSQ,gsq); gsSoon(); }
   function gsDirtySet(k){ if(!gsOn()) return; gsq.s[k]=1; lsSet(GSQ,gsq); gsSoon(); }
   function gsSoon(){ clearTimeout(gsTimer); gsTimer=setTimeout(gsSync,400); }
-  function gsShow(kind,msg){ var el=$('sync'); el.dataset.st=kind; el.dataset.gs='1'; el.textContent=msg+' · v4'; var g=$('gsState'); if(g) g.textContent=msg; }
+  function gsShow(kind,msg){ var el=$('sync'); el.dataset.st=kind; el.dataset.gs='1'; el.textContent=msg+' · v5'; var g=$('gsState'); if(g) g.textContent=msg; }
   function hm(t){ return pad(t.getHours())+':'+pad(t.getMinutes()); }
   function recOut(date){
     var r=store.days[date]||{};
@@ -583,7 +583,13 @@ textarea{min-height:84px;resize:vertical}
     gs=null; try{localStorage.removeItem(GSK)}catch(e){}
     var el=$('sync'); delete el.dataset.gs; gsInitUI(); setStatus('device');
   };
-  document.addEventListener('visibilitychange',function(){ if(document.visibilityState==='visible'&&gsOn()&&Date.now()-gsLast>15000) gsSync(); });
+  // 앱을 다시 볼 때마다, 그리고 화면을 보고 있는 동안 1분마다 PC 입력을 가져옴
+  function gsWake(){ if(document.visibilityState==='visible'&&gsOn()&&!gsBusy&&Date.now()-gsLast>10000) gsSync(); }
+  document.addEventListener('visibilitychange',gsWake);
+  window.addEventListener('pageshow',gsWake);
+  window.addEventListener('focus',gsWake);
+  window.addEventListener('online',gsWake);
+  setInterval(function(){ if(!$('sheet').classList.contains('on')) gsWake(); },60000);
 
   var DOW=['일','월','화','수','목','금','토'];
   function pad(n){return String(n).padStart(2,'0')}
